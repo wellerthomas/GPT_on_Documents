@@ -19,7 +19,8 @@ import pandas as pd
 from docx import Document
 from io import BytesIO
 
-
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 OPENAI_API_KEY=st.secrets['OPENAI_API_KEY']
 
@@ -61,30 +62,48 @@ def create_document(output):
     document.add_paragraph(output)
     return document
 
-def create_document(output):
-    document = Document()
-    document.add_heading('Summary of the AI writer', level=1)
+def create_pdf(output):
+    buffer = BytesIO()
     
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter  # keep for later
+
     # Regular expression to find **Headline Text**
     headline_regex = r'\*\*(.*?)\*\*'
 
-    # Split the text by lines
+    # Starting Y position
+    y_position = height - 40  # Start 40 pixels down from the top
+    
+    # Set up the font size and type for the heading
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(100, y_position, 'Summary of the AI writer')
+
+    # Set up the font size and type for the body text
+    c.setFont("Helvetica", 12)
     lines = output.split('\n')
+    y_position -= 20  # Space between title and content
     
     for line in lines:
-        # Search for headlines
         headline_search = re.search(headline_regex, line)
         if headline_search:
-            # If a headline is found, add it as a heading
             headline_text = headline_search.group(1).strip()
-            document.add_heading(headline_text, level=2)
-            continue  # Skip adding this line as a paragraph
-
-        # Add non-headline lines as paragraphs
+            y_position -= 20
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(100, y_position, headline_text)
+            c.setFont("Helvetica", 12)  # Change font back to normal for other text
+            continue
+        
         if line.strip() != '':  # Skip empty lines
-            document.add_paragraph(line)
+            y_position -= 14
+            if y_position < 40:
+                c.showPage()
+                y_position = height - 40
+            c.drawString(100, y_position, line)
 
-    return document
+    c.save()
+    
+    buffer.seek(0)
+    return buffer
 
 st.set_page_config(
     page_title='GPT on Documents',
@@ -189,19 +208,14 @@ if st.button('Start'):
 
         
     # Create the document
-    doc = create_document(output_add_infos)
+    pdf_buffer = create_pdf(output_add_infos)
 
-    # Save the document to a BytesIO object
-    buffer = BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
     
     # Use the download button to offer the document for download
     st.download_button(
-        label="Download Word document",
-        data=buffer,
-        file_name="output.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        label="Download PDF",
+        data=pdf_buffer,
+        file_name="output.pdf",
+        mime="application/pdf"
     )
-
 
