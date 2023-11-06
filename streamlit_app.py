@@ -19,10 +19,7 @@ import pandas as pd
 from docx import Document
 from io import BytesIO
 
-
-
 OPENAI_API_KEY=st.secrets['OPENAI_API_KEY']
-
 
 def load_document(file):
     import os
@@ -57,13 +54,7 @@ def num_tokens_from_string(string: str, encoding_name: str) -> int:
 
 def create_document(output):
     document = Document()
-    document.add_heading('Summary of the AI writer', level=1)
-    document.add_paragraph(output)
-    return document
-
-def create_document(output):
-    document = Document()
-    document.add_heading('Summary of the AI writer', level=1)
+    document.add_heading('Summary of the Document:', level=1)
 
     # Regular expression to find **Headline Text**
     headline_regex = r'\*\*(.*?)\*\*'
@@ -88,7 +79,7 @@ def create_document(output):
 
 st.set_page_config(
     page_title='GPT on Documents',
-    page_icon='🤖'
+    page_icon=':memo:'
 )
 st.title('GPT on Documents')
 st.subheader('''Upload the files''')
@@ -181,10 +172,10 @@ if st.button('Start'):
     output_add_infos_cleaned = output_add_infos.replace('**', '')
 
     processing_text.empty()
-    st.text_area('Here is the result', value=output_add_infos_cleaned, height=300)
+    #st.text_area('Here is the result', value=output_add_infos_cleaned, height=300)
     #st.text_area('Here is the result', value=number_of_token, height=300)
 
-
+    
     # Create the document
     doc = create_document(output_add_infos)
 
@@ -200,3 +191,5 @@ if st.button('Start'):
         file_name="output.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
+
+    st.markdown(output_add_infos, unsafe_allow_html=True)
