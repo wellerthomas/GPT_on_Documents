@@ -5,5 +5,4 @@ streamlit-chat
 tiktoken
 python-dotenv
 python-docx
-pypdf
-reportlab
+
