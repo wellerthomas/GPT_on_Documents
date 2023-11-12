@@ -19,7 +19,10 @@ import pandas as pd
 from docx import Document
 from io import BytesIO
 
+
+
 OPENAI_API_KEY=st.secrets['OPENAI_API_KEY']
+
 
 def load_document(file):
     import os
@@ -42,7 +45,7 @@ def load_document(file):
         loader  = TextLoader(file)
     else:
         print('Document format is not supported!')
-        return None
+        return None 
 
     data = loader.load()
     return data
@@ -99,97 +102,107 @@ if uploaded_files:
         file_inputs.append(file_input)
 
 
-# Initialize an empty string to hold all the text content
-all_file_data = ''
+    # Initialize an empty string to hold all the text content
+    all_file_data = ''
 
-# Loop over each file's list in file_inputs (neccessary for the number of token)
-for file_list in file_inputs:
-    # Each file_list contains Document objects for each page
-    for document in file_list:
-        # Extract the text content from the Document object's page_content attribute
-        text_content = document.page_content
-        # Append the text content to the all_file_data string
-        all_file_data += text_content + '\n'  # Adding a newline as a page separator
+    # Loop over each file's list in file_inputs (neccessary for the number of token)
+    for file_list in file_inputs:
+        # Each file_list contains Document objects for each page
+        for document in file_list:
+            # Extract the text content from the Document object's page_content attribute
+            text_content = document.page_content
+            # Append the text content to the all_file_data string
+            all_file_data += text_content + '\n'  # Adding a newline as a page separator
 
-# Now all_file_data contains the concatenated text from all the pages of all the Document objects
-
-
-
-# Text input for prompt
-user_prompt = st.text_area(label='Your Prompt', value="Summarize the information.", height=100)
-
-# Define the template using placeholders for both file_inputs and user_prompt
-template_string = '''
-Read the information from {file_inputs}
-This is your task: `{user_prompt}`
-{user_prompt}
-Format the information for the download in a word file. Use headlines and mark the headline words with ** text for headline **.
-'''
-
-prompt_data = PromptTemplate(
-    input_variables=['file_inputs', 'user_prompt'],
-    template=template_string
-)
-
-st.markdown("""
-<style>
-.stButton button {
-    background-color: #0074D9;
-    color: #FFFFFF;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Add the "Start" button
-if st.button('Start'):
+    # Now all_file_data contains the concatenated text from all the pages of all the Document objects
 
 
-    # Make sure to pass both file_inputs and user_prompt
-    chain_input = {
-        'file_inputs': file_inputs,
-        'user_prompt': user_prompt
-    }
 
-    llm = ChatOpenAI(temperature=0, model_name='gpt-3.5-turbo')
+    # Initialize session state for user_prompt
+    if 'user_prompt' not in st.session_state:
+        st.session_state['user_prompt'] = "Summarize the information."
 
-    number_of_token = num_tokens_from_string(all_file_data, "gpt-3.5-turbo")
 
-    # Check if the number of tokens exceeds the maximum limit
-    if number_of_token > 12000:
-        st.error("The length of the document is too long for processing. Please upload a shorter document.")
-        st.stop()
-    elif number_of_token > 3000:
-        # If more than 3000 tokens, switch to the larger model
-        llm = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-16k")
-        processing_text = st.text("In progress... and switch to gpt-3.5-turbo-16k because of the document sizes.")
-    else:
-        # If 3000 tokens or fewer, proceed with the original model
-        processing_text = st.text("One moment, I'm working on that...")
-
-    chain = LLMChain(llm=llm, prompt=prompt_data)
-    output_add_infos = chain.run(chain_input)
-
-    output_add_infos_cleaned = output_add_infos.replace('**', '')
-
-    processing_text.empty()
-    #st.text_area('Here is the result', value=output_add_infos_cleaned, height=300)
-    #st.text_area('Here is the result', value=number_of_token, height=300)
-
-    
-    # Create the document
-    doc = create_document(output_add_infos)
-
-    # Save the document to a BytesIO object
-    buffer = BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-
-    # Use the download button to offer the document for download
-    st.download_button(
-        label="Download Word document",
-        data=buffer,
-        file_name="output.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    # Use the session state variable for the text area, and update it on user input
+    st.session_state['user_prompt'] = st.text_area(
+        label='Your Prompt', 
+        value=st.session_state['user_prompt'], 
+        height=100
     )
 
-    st.markdown(output_add_infos, unsafe_allow_html=True)
+
+    template_string = '''
+    There are one or multiple documents loaded, which are represented by the variable {file_inputs}. Based on these documents, here is the task: {user_prompt}
+
+    Please ensure the output is structured suitably for conversion into a Word document, with key points highlighted as headlines. Headlines should be marked with ** at the start and end for emphasis.
+    '''
+
+    prompt_data = PromptTemplate(
+        input_variables=['file_inputs', 'user_prompt'],
+        template=template_string
+    )
+
+    st.markdown("""
+    <style>
+    .stButton button {
+        background-color: #0074D9;
+        color: #FFFFFF;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Add the "Start" button
+    if st.button('Start'):
+
+
+        # Make sure to pass both file_inputs and user_prompt
+        chain_input = {
+            'file_inputs': file_inputs,
+            'user_prompt': st.session_state['user_prompt']
+        }
+
+        llm = ChatOpenAI(temperature=0, model_name='gpt-3.5-turbo')
+        #llm = ChatOpenAI(temperature=0, model_name='gpt-4')
+
+        number_of_token = num_tokens_from_string(all_file_data, "gpt-3.5-turbo")
+
+        # Check if the number of tokens exceeds the maximum limit
+        if number_of_token > 12000:
+            st.error("The length of the document is too long for processing. Please upload a shorter document.")
+            st.stop()
+        elif number_of_token > 3000:
+            # If more than 3000 tokens, switch to the larger model
+            llm = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-16k")
+            processing_text = st.text("In progress... and switch to gpt-3.5-turbo-16k because of the document sizes.")
+        else:
+            # If 3000 tokens or fewer, proceed with the original model
+            processing_text = st.text("One moment, I'm working on that...")
+
+        chain = LLMChain(llm=llm, prompt=prompt_data)
+        output_add_infos = chain.run(chain_input)
+
+        output_add_infos_cleaned = output_add_infos.replace('**', '')
+
+        processing_text.empty()
+        
+        # Create the document
+        doc = create_document(output_add_infos)
+
+        # Save the document to a BytesIO object
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+
+        # Use the download button to offer the document for download
+        st.download_button(
+            label="Download Word document",
+            data=buffer,
+            file_name="output.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+
+        st.markdown(output_add_infos, unsafe_allow_html=True)
+        
+else:
+    # Display a message if no files have been uploaded
+    st.warning('Please upload at least one document to start.')
