@@ -89,6 +89,7 @@ st.subheader('''Upload the files''')
 
 uploaded_files = st.file_uploader("Upload files:", type=['pdf', 'docx', 'csv', 'txt'], accept_multiple_files=True)
 
+
 # Load data
 file_inputs = []
 if uploaded_files:
@@ -151,58 +152,55 @@ if uploaded_files:
     </style>
     """, unsafe_allow_html=True)
 
-    # Add the "Start" button
-    if st.button('Start'):
 
+    number_of_token = num_tokens_from_string(all_file_data, "gpt-3.5-turbo")
 
-        # Make sure to pass both file_inputs and user_prompt
-        chain_input = {
-            'file_inputs': file_inputs,
-            'user_prompt': st.session_state['user_prompt']
-        }
+    st.text("Model: GPT-4 Turbo")
+    st.text("Number of token: " + str(number_of_token))
 
-        llm = ChatOpenAI(temperature=0, model_name='gpt-3.5-turbo')
-        #llm = ChatOpenAI(temperature=0, model_name='gpt-4')
+    # Check if the number of tokens exceeds the maximum limit
+    if number_of_token > 100000:
+        st.error("The length of the document is too long for processing. Please upload a shorter document.")
+        st.stop()
+    else:
+        # Add the "Start" button
+        if st.button('Start'):
 
-        number_of_token = num_tokens_from_string(all_file_data, "gpt-3.5-turbo")
+            # Make sure to pass both file_inputs and user_prompt
+            chain_input = {
+                'file_inputs': file_inputs,
+                'user_prompt': st.session_state['user_prompt']
+            }
 
-        # Check if the number of tokens exceeds the maximum limit
-        if number_of_token > 12000:
-            st.error("The length of the document is too long for processing. Please upload a shorter document.")
-            st.stop()
-        elif number_of_token > 3000:
-            # If more than 3000 tokens, switch to the larger model
-            llm = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-16k")
-            processing_text = st.text("In progress... and switch to gpt-3.5-turbo-16k because of the document sizes.")
-        else:
-            # If 3000 tokens or fewer, proceed with the original model
+            llm = ChatOpenAI(temperature=0, model_name='gpt-4-1106-preview')
+            #llm = ChatOpenAI(temperature=0, model_name='gpt-4')
+
             processing_text = st.text("One moment, I'm working on that...")
+            chain = LLMChain(llm=llm, prompt=prompt_data)
+            output_add_infos = chain.run(chain_input)
 
-        chain = LLMChain(llm=llm, prompt=prompt_data)
-        output_add_infos = chain.run(chain_input)
+            output_add_infos_cleaned = output_add_infos.replace('**', '')
 
-        output_add_infos_cleaned = output_add_infos.replace('**', '')
+            processing_text.empty()
+            
+            # Create the document
+            doc = create_document(output_add_infos)
 
-        processing_text.empty()
-        
-        # Create the document
-        doc = create_document(output_add_infos)
+            # Save the document to a BytesIO object
+            buffer = BytesIO()
+            doc.save(buffer)
+            buffer.seek(0)
 
-        # Save the document to a BytesIO object
-        buffer = BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
+            # Use the download button to offer the document for download
+            st.download_button(
+                label="Download Word document",
+                data=buffer,
+                file_name="output.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
 
-        # Use the download button to offer the document for download
-        st.download_button(
-            label="Download Word document",
-            data=buffer,
-            file_name="output.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
-
-        st.markdown(output_add_infos, unsafe_allow_html=True)
-        
+            st.markdown(output_add_infos, unsafe_allow_html=True)
+            
 else:
     # Display a message if no files have been uploaded
     st.warning('Please upload at least one document to start.')
